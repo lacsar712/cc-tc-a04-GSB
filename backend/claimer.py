@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 
 from models import ConvergenceLog, SessionLocal
-from rules import judge
+from rules import judge_pair
 
 _stop = threading.Event()
 
@@ -22,7 +22,7 @@ def claim_once() -> bool:
         if row is None:
             db.commit()
             return False
-        verdict, reason = judge(float(row.delta_mm))
+        verdict, reason = judge_pair(float(row.left_mm), float(row.right_mm))
         row.status = "done"
         row.verdict = verdict
         row.reason = reason
