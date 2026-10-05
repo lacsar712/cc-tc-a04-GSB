@@ -1,4 +1,6 @@
 <script>
+  import DualPage from "./DualPage.svelte";
+
   let session = null;
   let logs = [];
   let loginUser = "surveyor";
@@ -8,6 +10,7 @@
   let error = "";
   let loading = false;
   let timer;
+  let page = "logs";
 
   $: isWriter = session?.role === "writer";
 
@@ -54,6 +57,7 @@
     if (timer) clearInterval(timer);
     session = null;
     logs = [];
+    page = "logs";
     localStorage.removeItem("tunnel_session");
   }
 
@@ -101,7 +105,16 @@
     color: #f5f5f4;
   }
   main { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
-  h1 { color: #fbbf24; margin: 0 0 0.25rem; }
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.25rem;
+  }
+  h1 { color: #fbbf24; margin: 0; }
+  nav.tabs { display: flex; gap: 0.5rem; }
+  nav.tabs button {
+    background: #44403c; color: #e7e5e4; font-weight: 600;
+  }
+  nav.tabs button.active { background: #d97706; color: #fff; }
   .sub { color: #a8a29e; margin-bottom: 1.25rem; }
   section {
     background: #292524; border: 1px solid #44403c; border-radius: 8px;
@@ -127,7 +140,15 @@
 </style>
 
 <main>
-  <h1>隧道收敛测缝台</h1>
+  <header class="top">
+    <h1>隧道收敛测缝台</h1>
+    {#if session}
+      <nav class="tabs">
+        <button class:active={page === "logs"} on:click={() => (page = "logs")}>收敛记录</button>
+        <button class:active={page === "dual"} on:click={() => (page = "dual")}>双路专页</button>
+      </nav>
+    {/if}
+  </header>
   {#if !session}
     <p class="sub">测量员提交桩号与收敛毫米值，接口进程内线程认领后出结论。登录框已预填可写账号 surveyor / surv123456。</p>
     <section>
@@ -138,6 +159,8 @@
       <button disabled={loading} on:click={login}>登录</button>
       {#if error}<p class="err">{error}</p>{/if}
     </section>
+  {:else if page === "dual"}
+    <DualPage {session} {isWriter} onLogout={logout} />
   {:else}
     <p class="sub">已登录：{session.username}（{isWriter ? "可提交" : "只读"}）</p>
     <section>

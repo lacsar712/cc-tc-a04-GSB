@@ -3,32 +3,54 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from models import ConvergenceLog, SessionLocal
-from rules import judge
+from models import ConvergenceLog, DualReport, SessionLocal
+from rules import judge, judge_dual
 
 _stop = threading.Event()
+
+
+def _claim_log(db) -> bool:
+    row = (
+        db.query(ConvergenceLog)
+        .filter(ConvergenceLog.status == "pending")
+        .order_by(ConvergenceLog.id)
+        .with_for_update(skip_locked=True)
+        .first()
+    )
+    if row is None:
+        return False
+    verdict, reason = judge(float(row.delta_mm))
+    row.status = "done"
+    row.verdict = verdict
+    row.reason = reason
+    row.processed_at = datetime.now(timezone.utc)
+    return True
+
+
+def _claim_dual(db) -> bool:
+    row = (
+        db.query(DualReport)
+        .filter(DualReport.status == "pending")
+        .order_by(DualReport.id)
+        .with_for_update(skip_locked=True)
+        .first()
+    )
+    if row is None:
+        return False
+    verdict, reason = judge_dual(float(row.left_mm), float(row.right_mm))
+    row.status = "done"
+    row.verdict = verdict
+    row.reason = reason
+    row.processed_at = datetime.now(timezone.utc)
+    return True
 
 
 def claim_once() -> bool:
     db = SessionLocal()
     try:
-        row = (
-            db.query(ConvergenceLog)
-            .filter(ConvergenceLog.status == "pending")
-            .order_by(ConvergenceLog.id)
-            .with_for_update(skip_locked=True)
-            .first()
-        )
-        if row is None:
-            db.commit()
-            return False
-        verdict, reason = judge(float(row.delta_mm))
-        row.status = "done"
-        row.verdict = verdict
-        row.reason = reason
-        row.processed_at = datetime.now(timezone.utc)
+        claimed = _claim_log(db) | _claim_dual(db)
         db.commit()
-        return True
+        return claimed
     except Exception:
         db.rollback()
         raise
